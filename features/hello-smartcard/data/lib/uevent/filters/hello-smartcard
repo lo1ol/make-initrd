@@ -1,0 +1,8 @@
+#!/bin/bash
+. uevent-sh-functions
+
+# Создаем событие добавления смарт-карты
+event="$(make_event)"
+# Событие -- это файл хранящий переменные внутри себя
+echo "SOME_VAR=value" >> "$event"
+release_event hello-smartcard "$event"

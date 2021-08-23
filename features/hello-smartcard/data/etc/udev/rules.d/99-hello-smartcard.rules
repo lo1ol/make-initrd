@@ -1,0 +1,1 @@
+SUBSYSTEM=="usb", ACTION=="add", TAG=="security-device", RUN+="/lib/uevent/filters/hello-smartcard"

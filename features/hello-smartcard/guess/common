@@ -1,0 +1,19 @@
+#!/bin/bash -efu
+
+# Подключаем shell функции модуля guess
+. guess-functions
+
+# Проверяем, что фича активна
+is_active_feature "hello-smartcard" ||
+	exit 0
+
+# Если pkcs11 модуль уже задан -- выходим
+[ -z "${SMART_CARD_PKCS11_MODULE-}" ] || exit 0
+
+# Иначе пробуем определить его сами
+for module in "librtpkcs11ecp.so" "opensc-pkcs11.so"; do
+	# Если нашли хотя бы один токен с помощью такого модуля -- предлагаем его.
+	pkcs11-tool --module "$module" -T &> /dev/null && guess_variable "SMART_CARD_PKCS11_MODULE" "$module" && exit 0
+done
+
+# Посмотрите в файле tools/guess-functions, что еще можно определить с помощью guess

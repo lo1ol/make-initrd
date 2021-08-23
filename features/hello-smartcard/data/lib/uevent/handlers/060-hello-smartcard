@@ -1,0 +1,57 @@
+#!/bin/bash
+
+. /.initrd/initenv
+. uevent-sh-functions
+. initrd-sh-functions
+. rdshell-sh-functions
+. smart-card
+
+
+# функция обработки вставки смарт-карты
+handler() {
+	local rc
+
+	# Проверяем наличие смарт-карты
+	check_for_smart_card "$SMARTCARD_SERIAL"
+	rc=$?
+
+	# Если у смарт-карты другой серийный номер -- удаляем событие из очереди
+	[ "$rc" == "2" ] && return 0
+	# Если смарт-карта отсуствует -- пробуем обработать событие в другой раз
+	[ "$rc" == "1" ] && return 1
+
+	echo "Hello Smartcard!"
+	echo "List of certificates:"
+
+	# Вывод списка сертификатов
+	pkcs11-tool --module "$(get_pkcs11_module)" -O --type cert
+
+	return $?
+}
+
+# Заблокируем вывод в консоль другим приложениям
+while ! console_lock; do
+	sleep 0.5
+done
+
+# Перенаправим I/O обработчика в консоль
+exec 0</dev/console >/dev/console 2>&1
+
+rc=0
+# Отфильтровываем события hello-smartcard
+for e in "$eventdir"/hello-smartcard.*; do
+	[ -f "$e" ] || break
+	r=0
+	# Запускаем функцию-обработчик с заданным окружением
+	( . "$e"; handler; ) || r="$?"
+	case "$r" in
+		# Событие остается в очереди
+		1) rc=1 ;;
+		# Удаляем событие из очереди
+		0) done_event "$e" ;;
+	esac
+done
+
+# Открываем доступ к консоли
+console_unlock
+exit $rc
