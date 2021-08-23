@@ -1,0 +1,8 @@
+#!/bin/bash
+. uevent-sh-functions
+
+# Создаем событие добавления usb-устройства
+event="$(make_event)"
+# Событие -- это файл хранящий переменные внутри себя
+echo "VENDOR=$ID_VENDOR" >> "$event"
+release_event hello-usb "$event"

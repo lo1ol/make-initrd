@@ -1,0 +1,44 @@
+#!/bin/bash
+
+. /.initrd/initenv
+. uevent-sh-functions
+. initrd-sh-functions
+. rdshell-sh-functions
+
+# функция обработки вставки usb-устройства
+handler() {
+	local rc
+
+	[ -n "$USB_VENDOR" ] && [ "$VENDOR" != "$USB_VENDOR" ] && return 0
+
+	echo "Hello USB!"
+
+	return 0
+}
+
+# Заблокируем вывод в консоль другим приложениям
+while ! console_lock; do
+	sleep 0.5
+done
+
+# Перенаправим I/O обработчика в консоль
+exec 0</dev/console >/dev/console 2>&1
+
+rc=0
+# Отфильтровываем события hello-usb
+for e in "$eventdir"/hello-usb.*; do
+	[ -f "$e" ] || break
+	r=0
+	# Запускаем функцию-обработчик с заданным окружением
+	( . "$e"; handler; ) || r="$?"
+	case "$r" in
+		# Событие остается в очереди
+		1) rc=1 ;;
+        	# Удаляем событие из очереди
+        	0) done_event "$e" ;;
+	esac
+done
+
+# Открываем доступ к консоли
+console_unlock
+exit $rc
