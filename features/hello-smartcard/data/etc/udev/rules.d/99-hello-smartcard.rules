@@ -1,0 +1,2 @@
+SUBSYSTEM=="usb", TAG=="security-device", ACTION=="add", RUN+="/lib/uevent/filters/smartcard-connected"
+SUBSYSTEM=="usb", TAG=="security-device", ACTION=="remove", RUN+="/lib/uevent/filters/smartcard-disconnected"

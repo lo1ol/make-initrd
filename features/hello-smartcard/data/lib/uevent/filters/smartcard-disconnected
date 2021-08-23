@@ -1,0 +1,8 @@
+#!/bin/bash
+. uevent-sh-functions
+
+# Создаем событие удаление смарт-карты
+# Событие -- это файл хранящий описание события через переменные
+event="$(make_event)"
+echo "SMARTCARD_CONNECTED=" >> "$event"
+release_event hello-smartcard "$event"

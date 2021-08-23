@@ -1,0 +1,100 @@
+#!/bin/bash
+
+. /.initrd/initenv
+. uevent-sh-functions
+. initrd-sh-functions
+. rdshell-sh-functions
+. smart-card
+
+check_smartcard_is_present() {
+	local serial=$1
+	local reader=$2
+	local n=0
+
+	while [ "$n" != "${SMARTCARD_NUMBER}" ]; do
+		[ -n "${reader}" ] && n="${reader}"
+		opensc-tool -r $n --serial | tr -d " \t" | grep -i "${serial}" && return 0
+		[ -n "${reader}" ] && return 1
+
+		n=$(($n + 1))
+	done
+
+	return 1
+}
+
+# функция обработки вставки смарт-карты
+hello_smartcard() {
+	SMARTCARD_NUMBER=$((${SMARTCARD_NUMBER:-1} + 1))
+	echo "SMARTCARD_NUMBER=${SMARTCARD_NUMBER}" >> /.initrd/initenv
+
+	[ -n "${SMARTCARD_SERIAL}" ] &&
+	if $(check_smartcard_is_present "$SMARTCARD_SERIAL" "$SMARTCARD_NUMBER"); then
+		echo "TARGET_SMARTCARD_INSERTED=1" >> /.initrd/initenv
+	else
+		return 0
+	fi
+
+	echo "Hello Smartcard!"
+	echo "List of certificates:"
+
+	# Вывод списка сертификатов
+	pkcs11-tool --module "$(get_pkcs11_module)" -O --type cert --slot "${SMARTCARD_NUMBER}"
+	return 0
+
+}
+
+# функция обработки извлечения смарт-карты
+goodbye_smartcard() {
+	SMARTCARD_NUMBER=$((${SMARTCARD_NUMBER} - 1))
+	echo "SMARTCARD_NUMBER=${SMARTCARD_NUMBER}" >> /.initrd/initenv
+
+	# Проверяем, что смарт-карту с указаным серийным номером не усталось найти
+        [ -n "${SMARTCARD_SERIAL}" ] && [ -n "${TARGET_SMARTCARD_INSERTED}" ] &&
+	if $(check_smartcard_is_present "$SMARTCARD_SERIAL"); then
+                echo "TARGET_SMARTCARD_INSERTED=" >> /.initrd/initenv
+        else
+                return 0
+        fi
+
+        echo "Goodbye Smartcard!"
+        return 0
+
+}
+
+# Функция обработчик
+handler() {
+	if [ "${SMARTCARD_CONNECTED}" ]; then
+		hello_smartcard
+	else
+		goodbye_smartcard
+	fi
+
+	return $?
+}
+
+# Заблокируем вывод в консоль другим приложениям
+while ! console_lock; do
+	sleep 0.5
+done
+
+# Перенаправим I/O обработчика в консоль
+exec 0</dev/console >/dev/console 2>&1
+
+rc=0
+# Отфильтровываем события hello-smartcard
+for e in "$eventdir"/hello-smartcard.*; do
+	[ -f "$e" ] || break
+	r=0
+	# Запускаем функцию-обработчик с заданным окружением
+	( . "$e"; handler; ) || r="$?"
+	case "$r" in
+		# Событие остается в очереди
+		1) rc=1 ;;
+        	# Удаляем событие из очереди
+        	0) done_event "$e" ;;
+	esac
+done
+
+# Открываем доступ к консоли
+console_unlock
+exit $rc

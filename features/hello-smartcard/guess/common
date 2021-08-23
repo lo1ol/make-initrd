@@ -1,0 +1,16 @@
+#!/bin/bash -efu
+
+# Подключаем shell функции модуля guess
+. guess-functions
+
+# Проверяем, что фича активна
+is_active_feature "hello-smartcard" ||
+	exit 0
+
+# Если pkcs11 модуль уже задан и не равен librtpkcs11ecp.so, выводим ошибку
+[ -z "${SMART_CARD_PKCS11_MODULE-}" ] || [ "${SMART_CARD_PKCS11_MODULE-}" == "librtpkcs11ecp.so" ] || fatal  "Not Smartcard PKCS11 provider are already specified"
+
+# Предлагаем использовать библиотеку librtpkcs11ecp.so, в качестве pkcs11 модуля
+guess_variable "SMART_CARD_PKCS11_MODULE" "librtpkcs11ecp.so"
+
+# Посмотрите в файле tools/guess-functions, что еще можно определить с помощью guess
